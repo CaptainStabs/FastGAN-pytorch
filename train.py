@@ -71,7 +71,7 @@ def train(args):
     save_interval = 100
     saved_model_folder, saved_image_folder = get_dir(args)
 
-    wandb.init(project="diffaug", name="fastgan", config=args)
+    wandb.init(project="fastgan", config=args)
     wandb.config.update({
         "ndf": ndf,
         "ngf": ngf,
@@ -111,11 +111,9 @@ def train(args):
     
     #from model_s import Generator, Discriminator
     netG = Generator(ngf=ngf, nz=nz, im_size=im_size)
-    wandb.watch(NetG)
     netG.apply(weights_init)
 
     netD = Discriminator(ndf=ndf, im_size=im_size)
-    wandb.watch(NetD)
     netD.apply(weights_init)
 
     netG.to(device)
@@ -130,6 +128,7 @@ def train(args):
 
     if checkpoint != 'None':
         ckpt = torch.load(checkpoint)
+        wandb.watch(ckpt)
         netG.load_state_dict({k.replace('module.', ''): v for k, v in ckpt['g'].items()})
         netD.load_state_dict({k.replace('module.', ''): v for k, v in ckpt['d'].items()})
         avg_param_G = ckpt['g_ema']
