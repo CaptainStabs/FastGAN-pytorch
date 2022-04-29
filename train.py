@@ -16,6 +16,7 @@ from operation import ImageFolder, InfiniteSamplerWrapper
 from diffaug import DiffAugment
 policy = 'color,translation'
 import lpips
+import wandb
 percept = lpips.PerceptualLoss(model='net-lin', net='vgg', use_gpu=True)
 
 
@@ -69,6 +70,15 @@ def train(args):
     current_iteration = args.start_iter
     save_interval = 100
     saved_model_folder, saved_image_folder = get_dir(args)
+
+    wandb.init(project="diffaug", name="fastgan", config=args)
+    wandb.config.update({
+        "ndf": ndf,
+        "ngf": ngf,
+        "nz": nz,
+        "nlr": nlr,
+        "nbeta1": nbeta1,
+    })
     
     device = torch.device("cpu")
     if use_cuda:
@@ -101,9 +111,11 @@ def train(args):
     
     #from model_s import Generator, Discriminator
     netG = Generator(ngf=ngf, nz=nz, im_size=im_size)
+    wandb.watch(NetG)
     netG.apply(weights_init)
 
     netD = Discriminator(ndf=ndf, im_size=im_size)
+    wandb.watch(NetD)
     netD.apply(weights_init)
 
     netG.to(device)
