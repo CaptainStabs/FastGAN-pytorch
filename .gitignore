@@ -138,3 +138,7 @@ dmypy.json
 cython_debug/
 storage/*
 train_results/*
+results
+models
+nn_track
+wandb
