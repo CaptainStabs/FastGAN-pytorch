@@ -8,7 +8,10 @@ from torchvision import utils as vutils
 
 import argparse
 import random
+import os
 from tqdm import tqdm
+from pathlib import Path
+
 
 from models import weights_init, Discriminator, Generator
 from operation import copy_G_params, load_params, get_dir
@@ -69,8 +72,10 @@ def train(args):
     dataloader_workers = 8
     current_iteration = args.start_iter
     save_interval = 100
+    new = args.new
     saved_model_folder="F:/stylegan/FastGAN-pytorch/models/"	
     saved_image_folder = "F:/stylegan/FastGAN-pytorch/results/"
+
 
     wandb.init(project="fastgan-1", config=args)
     # wandb.config.update({
@@ -127,7 +132,17 @@ def train(args):
     optimizerG = optim.Adam(netG.parameters(), lr=nlr, betas=(nbeta1, 0.999))
     optimizerD = optim.Adam(netD.parameters(), lr=nlr, betas=(nbeta1, 0.999))
 
-    if checkpoint != 'None':
+    # if checkpoint != 'None':
+    if not new:
+        # Modified from lucidrains' stylegan2-pytorch code
+        if current_iteration == -1:
+            file_paths = [p for p in Path(saved_model_folder).glob('all_*.pth')]
+            saved_nums = sorted(map(lambda x: int(x.stem.split('_')[1]), file_paths))
+            if len(saved_nums) == 0:
+                return
+            name = saved_nums[-1]
+            print(f'continuing from previous epoch - {name}')
+            checkpoint = os.path.join(saved_model_folder, f'all_{name}.pth')
         ckpt = torch.load(checkpoint)
         netG.load_state_dict({k.replace('module.', ''): v for k, v in ckpt['g'].items()})
         netD.load_state_dict({k.replace('module.', ''): v for k, v in ckpt['d'].items()})
@@ -211,10 +226,10 @@ if __name__ == "__main__":
     parser.add_argument('--cuda', type=int, default=0, help='index of gpu to use')
     parser.add_argument('--name', type=str, default='test1', help='experiment name')
     parser.add_argument('--iter', type=int, default=1000000, help='number of iterations')
-    parser.add_argument('--start_iter', type=int, default=0, help='the iteration to start training')
+    parser.add_argument('--start_iter', type=int, default=-1, help='the iteration to start training')
     parser.add_argument('--batch_size', type=int, default=8, help='mini batch number of images')
     parser.add_argument('--im_size', type=int, default=512, help='image resolution')
-    parser.add_argument('--ckpt', type=str, default='None', help='checkpoint weight path if have one')
+    parser.add_argument('--new', type=bool, default='False', help='whether to start from scratch')
     parser.add_argument('--ndf', type=int, default=64, help='number of discriminator filters')
     parser.add_argument('--ngf', type=int, default=64, help='number of generator filters')
     parser.add_argument('--nz', type=int, default=256, help='size of the latent z vector')
