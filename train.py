@@ -59,26 +59,27 @@ def train(args):
     checkpoint = args.ckpt
     batch_size = args.batch_size
     im_size = args.im_size
-    ndf = 64
-    ngf = 64
-    nz = 256
-    nlr = 0.0002
-    nbeta1 = 0.5
+    ndf = args.ndf
+    ngf = args.ngf
+    nz = args.nz
+    nlr = args.nlr
+    nbeta1 = args.nbeta1
     use_cuda = True
     multi_gpu = True
     dataloader_workers = 8
     current_iteration = args.start_iter
     save_interval = 100
-    saved_model_folder, saved_image_folder = get_dir(args)
+    saved_model_folder="F:/stylegan/FastGAN-pytorch/models/"	
+    saved_image_folder = "F:/stylegan/FastGAN-pytorch/results/"
 
-    wandb.init(project="fastgan", config=args)
-    wandb.config.update({
-        "ndf": ndf,
-        "ngf": ngf,
-        "nz": nz,
-        "nlr": nlr,
-        "nbeta1": nbeta1,
-    })
+    wandb.init(project="fastgan-1", config=args)
+    # wandb.config.update({
+    #     "ndf": ndf,
+    #     "ngf": ngf,
+    #     "nz": nz,
+    #     "nlr": nlr,
+    #     "nbeta1": nbeta1,
+    # })
     
     device = torch.device("cpu")
     if use_cuda:
@@ -99,8 +100,8 @@ def train(args):
         dataset = ImageFolder(root=data_root, transform=trans)
 
    
-    dataloader = iter(DataLoader(dataset, batch_size=batch_size, shuffle=False,
-                      sampler=InfiniteSamplerWrapper(dataset), num_workers=dataloader_workers, pin_memory=True))
+    dataloader = iter(DataLoader(dataset, batch_size=batch_size, shuffle=False,	
+                                 sampler=InfiniteSamplerWrapper(dataset)))
     '''
     loader = MultiEpochsDataLoader(dataset, batch_size=batch_size, 
                                shuffle=True, num_workers=dataloader_workers, 
@@ -128,9 +129,10 @@ def train(args):
 
     if checkpoint != 'None':
         ckpt = torch.load(checkpoint)
-        wandb.watch(ckpt)
         netG.load_state_dict({k.replace('module.', ''): v for k, v in ckpt['g'].items()})
         netD.load_state_dict({k.replace('module.', ''): v for k, v in ckpt['d'].items()})
+        wandb.watch(netG)
+        wandb.watch(netD)
         avg_param_G = ckpt['g_ema']
         optimizerG.load_state_dict(ckpt['opt_g'])
         optimizerD.load_state_dict(ckpt['opt_d'])
@@ -172,6 +174,8 @@ def train(args):
 
         if iteration % 100 == 0:
             print("GAN: loss d: %.5f    loss g: %.5f"%(err_dr, -err_g.item()))
+            wandb.log({"loss_d": err_dr})
+            wandb.log({"loss_g": -err_g.item()})
         
         # Not really sure of this logic, easy to add back though
 #         if iteration % (save_interval*10) == 0:
@@ -183,11 +187,13 @@ def train(args):
                 vutils.save_image( torch.cat([
                         F.interpolate(real_image, 128), 
                         rec_img_all, rec_img_small,
-                        rec_img_part]).add(1).mul(0.5), saved_image_folder+'/rec_%d.jpg'%iteration )
+                        rec_img_part]).add(1).mul(0.5), saved_image_folder+'/rec/rec_%d.jpg'%iteration )
             load_params(netG, backup_para)
 
+            wandb.log({"samples": wandb.Image(saved_image_folder+'/%d.jpg'%iteration)})
+
 #         if iteration % (save_interval*50) == 0 or iteration == total_iterations:
-        if iteration % save_interval == 0 or iteration == total_iterations:
+        if iteration % (save_interval * 10) == 0 or iteration == total_iterations:
             backup_para = copy_G_params(netG)
             load_params(netG, avg_param_G)
             torch.save({'g':netG.state_dict(),'d':netD.state_dict()}, saved_model_folder+'/%d.pth'%iteration)
@@ -204,11 +210,17 @@ if __name__ == "__main__":
     parser.add_argument('--path', type=str, default='../lmdbs/art_landscape_1k', help='path of resource dataset, should be a folder that has one or many sub image folders inside')
     parser.add_argument('--cuda', type=int, default=0, help='index of gpu to use')
     parser.add_argument('--name', type=str, default='test1', help='experiment name')
-    parser.add_argument('--iter', type=int, default=50000, help='number of iterations')
+    parser.add_argument('--iter', type=int, default=1000000, help='number of iterations')
     parser.add_argument('--start_iter', type=int, default=0, help='the iteration to start training')
     parser.add_argument('--batch_size', type=int, default=8, help='mini batch number of images')
-    parser.add_argument('--im_size', type=int, default=1024, help='image resolution')
+    parser.add_argument('--im_size', type=int, default=512, help='image resolution')
     parser.add_argument('--ckpt', type=str, default='None', help='checkpoint weight path if have one')
+    parser.add_argument('--ndf', type=int, default=64, help='number of discriminator filters')
+    parser.add_argument('--ngf', type=int, default=64, help='number of generator filters')
+    parser.add_argument('--nz', type=int, default=256, help='size of the latent z vector')
+    parser.add_argument('--nlr', type=float, default=0.0002, help='learning rate of the generator')
+    parser.add_argument('--nbeta1', type=float, default=0.5, help='beta1 for adam')
+
 
     args = parser.parse_args()
     print(args)
